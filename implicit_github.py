@@ -11,49 +11,59 @@ from implicit.bpr import BayesianPersonalizedRanking
 from implicit.nearest_neighbours import (BM25Recommender, CosineRecommender,
                                          TFIDFRecommender, bm25_weight)
 
+class ImplicitRecommend:
 
-def read_dataframe(filename):
-    """ Reads the original dataset csv as a pandas dataframe """
+    def __init__(self):
+        self.model = None
+        self.inner_id_to_item_ids = None
+        self.item_id_to_inner_ids = None
 
-    # read in triples of user/item/confidence_weight from the input dataset
-    data = pd.read_table(filename,
-                             usecols=[0, 1, 2],
-                             names=['user', 'item', 'weight'],
-                             na_filter=False,
-                             sep=',')
-    data = data.sort_values('item')
-    # map each item and user to a unique numeric value
-    data['user'] = data['user'].astype("category")
-    data['item'] = data['item'].astype("category")
+    def fit(self,df_source: pd.DataFrame):
+        data = df_source.copy()
+        data['user'] = data['user'].astype("category")
+        data['item'] = data['item'].astype("category")
 
 
-    # create a sparse matrix of all the users/weight
-    matrix = coo_matrix((data['weight'].astype(np.float32),
-                       (data['item'].cat.codes.copy(),
-                        data['user'].cat.codes.copy()))).tocsr()
-    
-    # get origin item for later use
-    items = list(data['item'].cat.categories)
-    return items,matrix
+        # create a sparse matrix of all the users/weight
+        matrix = coo_matrix((data['weight'].astype(np.float32),
+                        (data['item'].cat.codes.copy(),
+                            data['user'].cat.codes.copy()))).tocsr()
+        
+        # get origin item for later use
+        items = list(data['item'].cat.categories)
+        data = csr_matrix((matrix.data,matrix.indices,matrix.indptr))
+        self.model = AlternatingLeastSquares(factors=50)
+        self.model.fit(data)
+        # 这里有点不明白作者当初为什么这么写
+        # item_diff = np.ediff1d(matrix.indptr)
+        # self.inner_id_to_item_ids = sorted(np.arange(len(items)), key=lambda x: -item_diff[x])
+        self.inner_id_to_item_ids = items
+        self.item_id_to_inner_ids = {v: k for k,v in enumerate(items)}
+        
 
+    def get_similar_items(self,item_id,count: int=10):
+        inner_item_id = self.item_id_to_inner_ids[item_id]
+        sim_item_inner_ids = self.model.similar_items(inner_item_id,count+1)
+        #return [(self.inner_id_to_item_ids[inner_id],weight) for inner_id,weight in sim_item_inner_ids]
+        sim_item_ids = []
+        for inner_id,weight in sim_item_inner_ids:
+            sim_item_id = self.inner_id_to_item_ids[inner_id]
+            #因为这个推荐系统会把自己也推荐出来
+            if sim_item_id == item_id:
+                continue
+            sim_item_ids.append((sim_item_id,weight))
+        return sim_item_ids
 
-items,matrix = read_dataframe(sys.argv[1])
-# items,matrix = read_dataframe("~/Downloads/sw_order_product.csv")
-data = csr_matrix((matrix.data,matrix.indices,matrix.indptr))
+'''
+model = ImplicitRecommend()
 
-model = AlternatingLeastSquares(factors=50)
-# model = CosineRecommender()
-
-model.fit(data)
-
-# the item id in matrix is not equal to real raw item id
-item_diff = np.ediff1d(matrix.indptr)
-to_generate = sorted(np.arange(len(items)), key=lambda x: -item_diff[x])
-
-
+#items,matrix = read_dataframe(sys.argv[1])
+df = pd.read_csv("~/Downloads/sw_order_product.csv",names=['user','item','weight'])
+model.fit(df)
+items = df.groupby('item')
 output_filename = os.path.splitext(sys.argv[0])[0]+".csv"
-with open(output_filename,"w") as f:
-    for inner_item_id in to_generate:
-        sim_items = model.similar_items(inner_item_id)
-        for sim_item in sim_items:
-            f.write("%s,%s,%s\n" % (items[inner_item_id],items[sim_item[0]],sim_item[1]) )
+with open(output_filename,"w") as f: 
+    for item,_ in items:
+        for sim_item_id,weight in model.get_similar_items(item):
+            f.write("%s,%s,%s\n" % (item,sim_item_id,weight))
+'''

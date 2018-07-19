@@ -106,3 +106,4 @@ venv.bak/
 *.csv
 
 .vscode
+test.py

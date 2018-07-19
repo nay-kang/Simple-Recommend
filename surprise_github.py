@@ -26,8 +26,9 @@ class SurpriseRecommend:
     def get_similar_items(self,item_id, count: int=10):
         inner_item_id = self.algo.trainset.to_inner_iid(item_id)
         sim_item_inner_ids = self.algo.get_neighbors(inner_item_id,count)
-        return (self.algo.trainset.to_raw_iid(inner_id) for inner_id in sim_item_inner_ids)
+        return [(self.algo.trainset.to_raw_iid(inner_id),0) for inner_id in sim_item_inner_ids]
 
+'''
 model = SurpriseRecommend()
 
 file_path = os.path.expanduser(sys.argv[1])
@@ -42,3 +43,4 @@ with open(output_filename,"w") as f:
         f.write("%s,%s,%s\n" % (item,item,'NaN'))
         for sim_item_id in model.get_similar_items(item):
             f.write("%s,%s,%s\n" % (item,sim_item_id,'NaN'))
+'''

@@ -11,8 +11,13 @@ implicit_github.py 依赖的是 [https://github.com/benfred/implicit](https://gi
 
 Example
 
-        python3 implicit_github.py path_to_csv
         #csv文件的格式是 user,item,weight
+
+        #生成相关商品
+        python3 main.py gen_similar implicit path_to_csv
+        #验证算法精确度
+        python3 main.py evaluate implicit path_to_csv
+        
 
 # Reference引用参考
 
