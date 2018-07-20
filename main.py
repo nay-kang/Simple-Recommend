@@ -1,5 +1,6 @@
 from implicit_github import ImplicitRecommend
 from surprise_github import SurpriseRecommend
+from random_rec import RandomRecommend
 import sys
 import argparse
 import pandas as pd
@@ -9,6 +10,7 @@ from sklearn.model_selection import train_test_split
 MODELS = {
     "implicit":ImplicitRecommend,
     "surprise":SurpriseRecommend,
+    "random":RandomRecommend,
 }
 
 def read_csv(path):
@@ -37,10 +39,11 @@ def evaluate(model,full_df,count):
     count:生成推荐的数量
     '''
 
-    #分割训练集和测试集，并存入临时文件
-    train_df,test_df = train_test_split(full_df,test_size=0.2)
+    #分割训练集和测试集
+    train_df,test_df = train_test_split(full_df,test_size=0.2,stratify=full_df['user'])
     train_df = train_df.reset_index(drop=True)
     test_df = test_df.reset_index(drop=True)
+    #并存入临时文件，方便debug
     train_df.to_csv('tmp_train_set.csv')
     test_df.to_csv('tmp_test_set.csv')
     
@@ -84,7 +87,7 @@ def evaluate(model,full_df,count):
         hit = 0
         for iit in item_in_test:
             hit += int(iit in sim_items)
-        metric[user] = {"hit":hit,"hit_percent":hit/count,"recall":recall_count}
+        metric[user] = {"hit":hit,"hit_percent":hit/count,"recall":hit/len(item_in_test)}
         total_hit += hit
     return (total_hit/(len(metric)*count)),metric,pass_user
 
@@ -142,6 +145,10 @@ if __name__ == '__main__':
     model = model_class()
     csv_file = args.file
     df = read_csv(csv_file)
+    #筛选大于5个商品的用户
+    count_df = df.groupby(['user','item']).size().groupby('user').size()
+    enough_df = count_df[count_df >= 5].reset_index()[['user']]
+    df = df.merge(enough_df,how='right',left_on='user',right_on='user')
     if args.command == 'gen_similar':
         model.fit(df)
         output_filename = 'output_%s.csv' % args.model
