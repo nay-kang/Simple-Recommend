@@ -6,6 +6,8 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+import math
+from multiprocessing import Pool
 
 MODELS = {
     "implicit":ImplicitRecommend,
@@ -25,7 +27,7 @@ def gen_similar(model,df,output_filename,count=10):
     items = df.groupby('item')
     with open(output_filename,"w") as f: 
         for item,_ in items:
-            f.write("%s,%s,%s\n" % (item,item,1))
+            #f.write("%s,%s,%s\n" % (item,item,1))
             result[item] = []
             for sim_item_id,weight in model.get_similar_items(item,count):
                 f.write("%s,%s,%s\n" % (item,sim_item_id,weight))
@@ -40,6 +42,7 @@ def evaluate(model,full_df,count):
     '''
 
     #分割训练集和测试集
+    print('split train set')
     train_df,test_df = train_test_split(full_df,test_size=0.2,stratify=full_df['user'])
     train_df = train_df.reset_index(drop=True)
     test_df = test_df.reset_index(drop=True)
@@ -48,49 +51,93 @@ def evaluate(model,full_df,count):
     test_df.to_csv('tmp_test_set.csv')
     
     #训练模型，并得到推荐商品
+    print('get similar data')
     model.fit(train_df)
     full_sim_items = gen_similar(model,train_df,'tmp_similar.csv',count*2)
     train_df_idx = train_df.set_index('user')
     test_users = test_df.groupby('user')
     
-
+    # 计算数据
+    print('calc metric')
     pass_user = 0
     metric = {}
     total_hit = 0
+    item_in_test_count = 0
+    '''
+    multi process
+    '''
+    fn_params = []
+    print('gather params')
     for user,group in test_users:
+        fn_params.append((train_df_idx,full_sim_items,user,group,count))
+
+    print('run multi process')
+    with Pool(4) as pool:
+        rtns = pool.map(_evaluate,fn_params)
+    print('gather return')
+    for user,m,recall,pass_u in rtns:
+        total_hit += m['hit']
+        pass_user += pass_u
+        if pass_u == 0:
+            metric[user] = m
+        item_in_test_count += recall
+    
+
+    '''
+    single process
+    
+    for user,group in test_users:
+        _,m,recall,pass_u = _evaluate((train_df_idx,full_sim_items,user,group,count))
+        total_hit += m['htt']
+        pass_user += pass_u
+        if pass_u == 0:
+            metric[user] = m
+        item_in_test_count += recall
+    '''
+
+    return (total_hit/(len(metric)*count)),total_hit/item_in_test_count,metric,pass_user
+
+def _evaluate(v):
+    train_df_idx = v[0]
+    full_sim_items = v[1]
+    user = v[2]
+    group = v[3]
+    count = v[4]
+    pass_user = 0
+    try:
+        item_in_train = list(train_df_idx.loc[user]['item'])
+    except:
+        #因为训练集中无和用户相关的商品，所以跳过
+        # pass_user = 1
+        return user,None,0,1
+    
+    item_in_test = list(group['item'])
+    #因为测试集中无和用户关联的商品，所以跳过
+    if len(item_in_test) <=0:
+        # pass_user = 1
+        return user,None,0,1
+
+    sim_items = _get_sim_item_by_items_2(item_in_train,full_sim_items)
+    # 排重
+    dup_idx = np.unique(sim_items,return_index=True)[1]
+    sim_items = [sim_items[index] for index in sorted(dup_idx)]
+    recall_count = len(sim_items)
+    # 移除在训练集里面重复的
+    for item in item_in_train:
         try:
-            item_in_train = list(train_df_idx.loc[user]['item'])
+            sim_items.remove(item)
         except:
-            #因为训练集中无和用户相关的商品，所以跳过
-            pass_user += 1
-            continue
-        
-        item_in_test = list(group['item'])
-        #因为测试集中无和用户关联的商品，所以跳过
-        if len(item_in_test) <=0:
-            pass_user += 1
-            continue
-
-        sim_items = _get_sim_item_by_items_1(item_in_train,full_sim_items)
-        # 排重
-        dup_idx = np.unique(sim_items,return_index=True)[1]
-        sim_items = [sim_items[index] for index in sorted(dup_idx)]
-        recall_count = len(sim_items)
-        # 移除在训练集里面重复的
-        for item in item_in_train:
-            try:
-                sim_items.remove(item)
-            except:
-                pass
-        # 截断出topN
-        sim_items = sim_items[:count]
-        hit = 0
-        for iit in item_in_test:
-            hit += int(iit in sim_items)
-        metric[user] = {"hit":hit,"hit_percent":hit/count,"recall":hit/len(item_in_test)}
-        total_hit += hit
-    return (total_hit/(len(metric)*count)),metric,pass_user
-
+            pass
+    # 截断出topN
+    sim_items = sim_items[:count]
+    #获得命中次数
+    hit = 0
+    for iit in item_in_test:
+        hit += int(iit in sim_items)
+    #metric[user] = {"hit":hit,"hit_percent":hit/count,"recall":hit/len(item_in_test)}
+    return user,{"hit":hit,"hit_percent":hit/count,"recall":hit/len(item_in_test)},len(item_in_test),pass_user
+    # total_hit += hit
+    # item_in_test_count += len(item_in_test)
 
 def _get_sim_item_by_items_1(origin_items,full_similar_items):
     '''
@@ -131,6 +178,37 @@ def _get_sim_item_by_items_1(origin_items,full_similar_items):
         idx += 1
     return rtn_sim_items
 
+def _get_sim_item_by_items_2(origin_items,full_similar_items):
+    '''
+    思路：
+        origin_items => s_a,s_b,s_c
+        三个商品的相关商品
+        [s_a,[a1,a2,a3,a4,a5]]
+        [s_b,[a1,a3,a2,a5,a7]]
+        [s_c,[a3,a2,a7,a9,a1]]
+        推导出
+        [a1,a3,a2,a7,a5,...]
+        属于互相叠加的
+    '''    
+    sim_items_with_value = {}
+    for origin_item in origin_items:
+        try:
+            sim_items = full_similar_items[origin_item]
+        except:
+            continue
+        for idx in range(len(sim_items)):
+            sim_item = sim_items[idx][0]
+            value = 1/(math.sqrt(idx+1))
+            if sim_item in sim_items_with_value:
+                sim_items_with_value[sim_item] += value
+            else:
+                sim_items_with_value[sim_item] = value
+
+    rtn_sim_items = []
+    for key,_val in sorted(sim_items_with_value.items(), key=lambda kv: kv[1],reverse=True):
+        rtn_sim_items.append(key)
+    
+    return rtn_sim_items
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Simple Recommend")
@@ -145,19 +223,24 @@ if __name__ == '__main__':
     model = model_class()
     csv_file = args.file
     df = read_csv(csv_file)
+    # 筛选交互超过20个用户的商品
+    count_df = df.groupby('item').size()
+    enough_df = count_df[count_df >= 20].reset_index()[['item']]
+    df = df.merge(enough_df,how='right',left_on='item',right_on='item')
     #筛选大于5个商品的用户
     count_df = df.groupby(['user','item']).size().groupby('user').size()
     enough_df = count_df[count_df >= 5].reset_index()[['user']]
     df = df.merge(enough_df,how='right',left_on='user',right_on='user')
+    
     if args.command == 'gen_similar':
         model.fit(df)
         output_filename = 'output_%s.csv' % args.model
-        gen_similar(model,df,output_filename)
+        gen_similar(model,df,output_filename,100)
     
     if args.command == 'evaluate':
         result = []
         for i in range(int(args.evaluate_times)):
-            percent,metric,passed = evaluate(model,df,int(args.evaluate_item_count))
-            result.append((percent,metric,passed))
+            precision,recall,metric,passed = evaluate(model,df,int(args.evaluate_item_count))
+            result.append((precision,recall,metric,passed))
         for r in result:
-            print("user:%s \t passed:%s \t%2.4f%%" % (len(r[1]),r[2],r[0]) )
+            print("user:%s \t passed:%s \tprecision:%2.4f%% \trecall:%2.4f%%" % (len(r[2]),r[3],r[0]*100,r[1]*100) )
