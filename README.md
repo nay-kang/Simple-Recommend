@@ -9,14 +9,20 @@ implicit_github.py 依赖的是 [https://github.com/benfred/implicit](https://gi
 - implicit从名字上看已经很贴切了，注重的是隐式数据的推荐功能，也就是没有用户主动的评价好坏，而是根据用户的行为，浏览多次，点赞，收藏，转发等，来猜测用户对商品的喜好程度
 - implicit项目另外一个侧重点是性能，项目推荐用annconda运行，会比标准python有至少两倍的性能提升
 
+Install
+
+    git clone git@github.com:nay-kang/Simple-Recommend.git
+    cd Simple-Recommend/
+    pip3 install -r requirements.txt
+
 Example
 
         #csv文件的格式是 user,item,weight
 
         #生成相关商品
-        python3 main.py gen_similar implicit path_to_csv
+        python3 main.py gen_similar implicit --read_from_csv=file.csv
         #验证算法精确度
-        python3 main.py evaluate implicit path_to_csv
+        python3 main.py evaluate implicit --read_from_csv=file.csv
         
 
 # Reference引用参考
