@@ -42,24 +42,3 @@ class LightFMRecommend:
         inner_items_ids = self.annoy_idx.get_nns_by_item(inner_id,count)
         return [(self.inner_id_to_item_ids[inner],0) for inner in inner_items_ids]
 
-
-# data = fetch_movielens(min_rating=5.0)
-
-# train = data['train']
-# test = data['test']
-
-
-#print(precision_at_k(model,data['test'],k=5).mean())
-
-# ranks = model.predict_rank(data['test'])
-# print(ranks)
-
-# def nearest_movies_annoy(movie_id,index,n=10,print_output=True):
-#     nn = index.get_nns_by_item(movie_id,10)
-#     if print_output:
-#         print('Closest to %s : \n' % data['item_labels'][movie_id])
-#     titles = [data['item_labels'][i] for i in nn]
-#     if print_output:
-#         print("\n".join(titles))
-    
-# nearest_movies_annoy(90,annoy_idx)
