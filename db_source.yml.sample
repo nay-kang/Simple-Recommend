@@ -1,0 +1,7 @@
+---
+db_host: 192.168.56.101
+db_port: 3306
+db_database: lequ
+db_user: root
+db_password: root
+fetch_sql: select user_id as user,song_id as item,1 as weight from likes

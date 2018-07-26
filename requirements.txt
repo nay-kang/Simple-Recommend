@@ -1,0 +1,10 @@
+pandas
+numpy
+pyyaml
+pymysql
+scipy
+implicit
+lightfm
+annoy
+sklearn
+scikit-surprise
