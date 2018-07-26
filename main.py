@@ -1,6 +1,7 @@
 from implicit_github import ImplicitRecommend
 from surprise_github import SurpriseRecommend
 from random_rec import RandomRecommend
+from lightfm_github import LightFMRecommend
 import sys
 import argparse
 import pandas as pd
@@ -13,6 +14,7 @@ MODELS = {
     "implicit":ImplicitRecommend,
     "surprise":SurpriseRecommend,
     "random":RandomRecommend,
+    'lightfm':LightFMRecommend,
 }
 
 def read_csv(path):
