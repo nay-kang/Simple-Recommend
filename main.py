@@ -219,8 +219,9 @@ if __name__ == '__main__':
     parser.add_argument('--write_to_db',help='db_target.yml config path')
     parser.add_argument('--evaluate_times',default=5,help='how many times evaluate repeat')
     parser.add_argument('--item_count',default=50,help='how many items return while evaluate')
-
+    
     args = parser.parse_args()
+    item_count = int(args.item_count)
     model_class = MODELS[args.model]
     model = model_class()
 
@@ -245,7 +246,7 @@ if __name__ == '__main__':
     if args.command == 'gen_similar':
         model.fit(df)
         output_filename = 'output_%s_%s.csv' % (args.model,datetime.now().strftime('%Y%m%d_%H%M%S'))
-        similars = get_similar(model,df,output_filename,args.item_count)
+        similars = get_similar(model,df,output_filename,item_count)
         if args.write_to_db:
             with open(args.write_to_db) as f:
                 target_conf = load(f.read())
@@ -254,7 +255,7 @@ if __name__ == '__main__':
     if args.command == 'evaluate':
         result = []
         for i in range(int(args.evaluate_times)):
-            precision,recall,metric,passed = evaluate(model,df,int(args.item_count))
+            precision,recall,metric,passed = evaluate(model,df,int(item_count))
             result.append((precision,recall,metric,passed))
         for r in result:
             print("user:%s \t passed:%s \tprecision:%2.4f%% \trecall:%2.4f%%" % (len(r[2]),r[3],r[0]*100,r[1]*100) )
