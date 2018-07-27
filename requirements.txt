@@ -1,7 +1,9 @@
 pandas
 numpy
 pyyaml
-pymysql
+#because centos python enviroment,replace to stock mysql driver
+#pymysql
+mysql-connector-python
 scipy
 implicit
 lightfm
