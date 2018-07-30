@@ -19,6 +19,8 @@ def read_from_database(conf):
 def write_to_database(conf,data):
     connection = _get_db_connection(conf)
     cursor = connection.cursor()
+    if 'before_sql' in conf:
+        cursor.execute(conf['before_sql'])
     for item_id,sim in data.items():
         if conf['mode'] == 'row':
             for sim_item,weight in sim:
