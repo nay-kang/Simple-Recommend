@@ -2,6 +2,7 @@
 from mysql import connector
 import pandas as pd
 from datetime import datetime
+import json
 
 def _get_db_connection(conf):
     connection = connector.connect(host=conf['db_host'],
@@ -29,6 +30,7 @@ def write_to_database(conf,data):
         elif conf['mode'] == 'dot':
             pass
         elif conf['mode'] == 'json':
+            cursor.execute(conf['insert_sql'] % (item_id,json.dumps([sim_item for sim_item,_ in sim])))
             pass
     connection.commit()
 
