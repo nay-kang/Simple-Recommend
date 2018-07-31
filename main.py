@@ -236,7 +236,7 @@ if __name__ == '__main__':
     
     # 筛选交互超过20个用户的商品
     count_df = df.groupby('item').size()
-    enough_df = count_df[count_df >= 20].reset_index()[['item']]
+    enough_df = count_df[count_df >= 10].reset_index()[['item']]
     df = df.merge(enough_df,how='right',left_on='item',right_on='item')
     #筛选大于5个商品的用户
     count_df = df.groupby(['user','item']).size().groupby('user').size()
