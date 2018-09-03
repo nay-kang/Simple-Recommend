@@ -212,13 +212,14 @@ def _get_sim_item_by_items_2(origin_items,full_similar_items):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Simple Recommend")
-    parser.add_argument('command',help='gen_similar,evaluate')
+    parser.add_argument('command',help='gen_similar,evaluate,gen_user_item')
     parser.add_argument('model',help='available models are %s' % ",".join(MODELS.keys()))
     parser.add_argument('--read_from_csv',help='csv file to fit')
     parser.add_argument('--read_from_db',help='db_source.yml config path')
     parser.add_argument('--write_to_db',help='db_target.yml config path')
     parser.add_argument('--evaluate_times',default=5,help='how many times evaluate repeat')
     parser.add_argument('--item_count',default=50,help='how many items return while evaluate')
+    parser.add_argument('--user_id',help='generate a user item')
     
     args = parser.parse_args()
     item_count = int(args.item_count)
@@ -259,3 +260,18 @@ if __name__ == '__main__':
             result.append((precision,recall,metric,passed))
         for r in result:
             print("user:%s \t passed:%s \tprecision:%2.4f%% \trecall:%2.4f%%" % (len(r[2]),r[3],r[0]*100,r[1]*100) )
+
+    if args.command == 'gen_user_item':
+        user_id = args.user_id
+        df_idx = df.set_index('user')
+        user_like_items = list(df_idx.loc[int(user_id)]['item'])
+
+        model.fit(df)
+        full_sim_items = get_similar(model,df,'tmp_similar.csv',item_count)
+        sim_items = _get_sim_item_by_items_2(user_like_items,full_sim_items)
+        # 排重
+        dup_idx = np.unique(sim_items,return_index=True)[1]
+        sim_items = [sim_items[index] for index in sorted(dup_idx)]
+        with open("user_items_%s.csv" % user_id,"w") as f:
+            for item in sim_items:
+                f.write("%s\n" % item)
